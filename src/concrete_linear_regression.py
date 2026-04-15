@@ -5,7 +5,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 
 # Load data
-df = pd.read_csv("../data/concrete.csv") 
+df = pd.read_csv("src\\data\\concrete.csv") 
 data = df.to_numpy()
 print(f"First 5 rows of this concrete dataset:\n {df.head()}")
 

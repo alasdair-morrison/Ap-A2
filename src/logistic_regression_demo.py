@@ -13,7 +13,7 @@
 
 # The code is programmed in procedural programming style, without the use of classes 
 # or object-oriented programming concepts. The students are expected to implement 
-# a library that minics the functionality of scikit-learn's logistic regression in 
+# a library that mimics the functionality of scikit-learn's logistic regression in 
 # Object-oriented style, programming paradigm and logistic regression model with 
 # regularization term.
 
@@ -60,7 +60,7 @@ def forward_prop(X, W, b):
     return softmax(z)
 
 # --- 3. TRAINING LOOP ---
-def train_model(X, y, lr=0.05, epochs=2000):
+def train_model(X, y, lr=0.05, epochs=5000):
     num_samples, num_features = X.shape
     num_classes = len(np.unique(y))
     

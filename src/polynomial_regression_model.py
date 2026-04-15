@@ -37,7 +37,7 @@ plt.grid(True)
 plt.show()
 
 # --- Part 2: Concrete Data Revisited (Polynomial) ---
-df = pd.read_csv("../data/concrete.csv")
+df = pd.read_csv("src\\data\\concrete.csv")
 data = df.to_numpy()
 X, y = data[:,:-1], data[:,-1]
 
