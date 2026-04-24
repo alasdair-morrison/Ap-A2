@@ -2,7 +2,7 @@
 #include "../include/sklearn_cpp/linear_model/utils.hpp"
 #include <iostream>
 #include <vector>
-
+// g++ -O3 -I ../include main_ecg.cpp -o main_ecg && ./main_ecg
 int main() {
     std::cout << "Starting Logistic Regression on ECG dataset..." << std::endl; // Print a message indicating the start of the process
     LogisticRegression model("data/ecg.csv", 30); // Create a LogisticRegression model with the specified dataset and number of epochs
