@@ -1,31 +1,70 @@
 #pragma once
+#include <fstream>
+#include <sstream>
+#include <stdexcept>
 #include <vector>
 #include <string>
 class Database {
     private:
         std::vector<std::vector<double>> features;
-        std::vector<int> labels;
+        std::vector<double> labels;
 
     public:
         Database(std::string filename) {
-            // Load data from file and populate features and labels
+            std::ifstream file(filename);
+            if (!file.is_open()) {
+                throw std::runtime_error("Failed to open file: " + filename);
+            }
+
+            std::string line;
+            while (std::getline(file, line)) {
+                if (line.empty()) {
+                    continue;
+                }
+
+                std::vector<double> row;
+                std::stringstream ss(line);
+                std::string cell;
+                bool valid_row = true;
+
+                while (std::getline(ss, cell, ',')) {
+                    if (!cell.empty() && cell.back() == '\r') {
+                        cell.pop_back();
+                    }
+
+                    try {
+                        row.push_back(std::stod(cell));
+                    } catch (...) {
+                        valid_row = false;
+                        break;
+                    }
+                }
+
+                if (!valid_row || row.empty()) {
+                    continue;
+                }
+
+                labels.push_back(row.back());
+                row.pop_back();
+                features.push_back(row);
+            }
         }
 
         Database() {
             // Default constructor
         }
 
-        Database(std::vector<std::vector<double>> features, std::vector<int> labels) {
+        Database(std::vector<std::vector<double>> features, std::vector<double> labels) {
             this->features = features;
             this->labels = labels;
 
         }
 
-        std::vector<std::vector<double>> getData() {
+        const std::vector<std::vector<double>>& getData() const {
             return features;
         }
 
-        std::vector<int> getLabels() {
+        const std::vector<double>& getLabels() const {
             return labels;
         }
 };
