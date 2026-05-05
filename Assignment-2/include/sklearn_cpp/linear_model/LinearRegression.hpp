@@ -1,150 +1,330 @@
-#include <iostream>
-#include <iomanip>
+ 
+#ifndef SKLEARN_CPP_LINEAR_MODEL_LINEAR_REGRESSION_HPP
+#define SKLEARN_CPP_LINEAR_MODEL_LINEAR_REGRESSION_HPP
+ 
 #include <vector>
-#include <string>
+#include <cmath>       // For std::abs
+#include <iostream>    // For printing training progress
+#include <stdexcept>   // For error handling
+#include <iomanip>     // For formatting printed numbers
  
-// These are our header-only library files.
-// Because we used -I ./include when compiling, the compiler knows
-// to look inside ./include for these paths.
-#include <sklearn_cpp/utils/csv_reader.hpp>
-#include <sklearn_cpp/utils/scaler.hpp>
-#include <sklearn_cpp/utils/metrics.hpp>
-#include <sklearn_cpp/linear_model/linear_regression.hpp>
+namespace sklearn_cpp {
+namespace linear_model {
  
-int main() {
+    class LinearRegression {
+    private:
+        // ==============================================================
+        // LEARNABLE PARAMETERS (what the model learns during training)
+        // ==============================================================
  
-    std::cout << "=======================================" << std::endl;
-    std::cout << " Linear Regression: Concrete Strength  " << std::endl;
-    std::cout << "=======================================" << std::endl;
+        // The weight for each feature. If we have 8 features,
+        // this vector has 8 elements: [w1, w2, ..., w8]
+        std::vector<double> weights;
  
-    // ==========================================================
-    // STEP 1: LOAD THE DATA
-    // ==========================================================
-    // concrete.csv has 1030 rows of data (plus a header).
-    // Each row has 9 numbers:
-    //   8 features: cement, slag, ash, water, superplastic,
-    //               coarseagg, fineagg, age
-    //   1 target:   strength (what we want to predict)
+        // The bias term (also called "intercept").
+        // This is the constant added to the prediction.
+        double bias;
  
-    std::string dataPath = "../data/concrete.csv";
-    std::cout << "\n[Step 1] Loading data from: " << dataPath << std::endl;
+        // ==============================================================
+        // HYPERPARAMETERS (settings WE choose before training)
+        // ==============================================================
  
-    std::vector<std::vector<double>> rawData;
-    try {
-        // readCsv returns a 2D vector: 1030 rows x 9 columns
-        // The 'true' means "the first line is a header, skip it"
-        rawData = sklearn_cpp::utils::readCsv(dataPath, true);
-    } catch (const std::runtime_error& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-        return 1;
-    }
+        // Learning rate (alpha): controls how big each gradient step is.
+        // Too big → model explodes. Too small → takes forever.
+        // Typical values: 0.001 to 0.1
+        double learningRate;
  
-    std::cout << "    Loaded " << rawData.size() << " samples." << std::endl;
+        // Maximum number of times we loop through the update step.
+        int maxIterations;
  
-    // ==========================================================
-    // STEP 2: SPLIT INTO FEATURES (X) AND LABELS (y)
-    // ==========================================================
-    // X = first 8 columns (the inputs)
-    // y = last column (strength — what we predict)
+        // If the loss changes by less than this between iterations,
+        // we consider the model "converged" and stop early.
+        double tolerance;
  
-    std::vector<std::vector<double>> xData;  // 1030 x 8
-    std::vector<double> yData;               // 1030 x 1
-    sklearn_cpp::utils::splitFeaturesAndLabels(rawData, xData, yData);
+        // If true, print the loss value during training so you can
+        // watch it decrease (useful for debugging).
+        bool verbose;
  
-    int numSamples = static_cast<int>(xData.size());
-    int numFeatures = static_cast<int>(xData[0].size());
-    std::cout << "    Samples: " << numSamples
-              << " | Features: " << numFeatures << std::endl;
+        // How often to print (every N iterations). Printing every
+        // single iteration would flood the terminal.
+        int printInterval;
  
-    // ==========================================================
-    // STEP 3: SCALE THE FEATURES
-    // ==========================================================
-    // WHY? Cement values are ~100-500, age values are ~1-365.
-    // If we don't scale, gradient descent will struggle because
-    // the gradient will be huge for some features and tiny for others.
-    //
-    // After scaling, every feature has mean=0 and std=1.
+        // ==============================================================
+        // TRAINING HISTORY
+        // ==============================================================
  
-    std::cout << "\n[Step 2] Scaling features..." << std::endl;
+        // Stores the loss value at each iteration. Useful for checking
+        // if the model is actually improving.
+        std::vector<double> lossHistory;
  
-    sklearn_cpp::utils::StandardScaler scaler;
-    std::vector<std::vector<double>> xScaled = scaler.fitTransform(xData);
+        // Has the model been trained yet?
+        bool isTrained;
  
-    std::cout << "    Done. All features now have mean=0, std=1." << std::endl;
+        // ==============================================================
+        // PRIVATE HELPER FUNCTIONS
+        // ==============================================================
  
-    // ==========================================================
-    // STEP 4: CREATE AND TRAIN THE MODEL
-    // ==========================================================
-    // We create a LinearRegression object and call fit().
-    //
-    // Hyperparameters:
-    //   learningRate = 0.01  (step size — not too big, not too small)
-    //   maxIterations = 5000 (try up to 5000 gradient steps)
-    //   tolerance = 1e-8     (stop if loss barely changes)
-    //   verbose = true       (print progress)
-    //   printInterval = 1000 (print every 1000 iterations)
+        /*
+         * dotProduct
+         * ----------
+         * Computes the dot product of two vectors:
+         *   result = a[0]*b[0] + a[1]*b[1] + ... + a[n-1]*b[n-1]
+         *
+         * This is the key operation in linear regression.
+         * When we do dotProduct(weights, x) + bias, we get our prediction.
+         *
+         * Example:
+         *   weights = [0.5, -0.3]
+         *   x       = [10, 20]
+         *   dot     = 0.5*10 + (-0.3)*20 = 5 - 6 = -1
+         */
+        double dotProduct(const std::vector<double>& vecA,
+                          const std::vector<double>& vecB) const {
+            double result = 0.0;
+            for (size_t i = 0; i < vecA.size(); ++i) {
+                result += vecA[i] * vecB[i];
+            }
+            return result;
+        }
  
-    std::cout << "\n[Step 3] Training the model..." << std::endl;
+        /*
+         * computeLoss
+         * -----------
+         * Calculates the Mean Squared Error (MSE):
+         *   L = (1/m) * SUM_i (prediction_i - actual_i)^2
+         *
+         * This tells us "on average, how far off are our predictions?"
+         * Lower is better. Zero means perfect predictions.
+         */
+        double computeLoss(const std::vector<std::vector<double>>& xData,
+                           const std::vector<double>& yData) const {
+            int numSamples = static_cast<int>(xData.size());
+            double totalLoss = 0.0;
  
-    sklearn_cpp::linear_model::LinearRegression model(
-        0.01,    // learningRate
-        5000,    // maxIterations
-        1e-8,    // tolerance
-        true,    // verbose (print progress)
-        1000     // printInterval
-    );
+            for (int i = 0; i < numSamples; ++i) {
+                double yHat = dotProduct(weights, xData[i]) + bias;
+                double error = yHat - yData[i];
+                totalLoss += error * error;   // Square the error
+            }
  
-    // This is where the model actually learns!
-    // It loops through the data thousands of times, adjusting
-    // the weights a tiny bit each time to reduce the error.
-    model.fit(xScaled, yData);
+            return totalLoss / numSamples;    // Average over all samples
+        }
  
-    // ==========================================================
-    // STEP 5: EVALUATE THE MODEL
-    // ==========================================================
-    // We use R² score to see how good the model is.
-    // R² close to 1.0 = great, close to 0 = bad.
+    public:
+        // ==============================================================
+        // CONSTRUCTOR
+        // ==============================================================
  
-    std::cout << "\n[Step 4] Evaluating..." << std::endl;
+        /*
+         * Creates a new LinearRegression model.
+         *
+         * You can customize the hyperparameters, or just use the defaults:
+         *   LinearRegression model;                 // All defaults
+         *   LinearRegression model(0.01, 5000);     // Custom rate & iterations
+         */
+        LinearRegression(double learningRate = 0.01,
+                         int maxIterations = 1000,
+                         double tolerance = 1e-8,
+                         bool verbose = false,
+                         int printInterval = 100)
+            : bias(0.0),
+              learningRate(learningRate),
+              maxIterations(maxIterations),
+              tolerance(tolerance),
+              verbose(verbose),
+              printInterval(printInterval),
+              isTrained(false) {}
  
-    // Use the trained model to predict on the same data we trained on
-    std::vector<double> yPredicted = model.predict(xScaled);
+        // ==============================================================
+        // fit() — THE TRAINING FUNCTION
+        // ==============================================================
  
-    // Compare predictions to actual values
-    double r2Train = sklearn_cpp::utils::r2Score(yData, yPredicted);
+        /*
+         * fit(xTrain, yTrain)
+         * -------------------
+         * This is where the magic happens. The model looks at your data
+         * and learns the best weights and bias.
+         *
+         * Parameters:
+         *   xTrain - 2D vector of features. Each row is one sample.
+         *            Example: xTrain[0] = {540.0, 0.0, 0.0, 162.0, ...}
+         *   yTrain - 1D vector of labels (what we want to predict).
+         *            Example: yTrain[0] = 79.99  (concrete strength)
+         *
+         * IMPORTANT: You should scale your features first using
+         *   StandardScaler before calling fit(). See scaler.hpp.
+         */
+        void fit(const std::vector<std::vector<double>>& xTrain,
+                 const std::vector<double>& yTrain) {
  
-    std::cout << "    Training R2-score: " << std::fixed << std::setprecision(4)
-              << r2Train << std::endl;
-    std::cout << "    (For reference, Python sklearn gets ~0.61 on this data)"
-              << std::endl;
+            // --- Safety checks ---
+            if (xTrain.empty() || yTrain.empty()) {
+                throw std::invalid_argument(
+                    "LinearRegression::fit: Training data must not be empty.");
+            }
+            if (xTrain.size() != yTrain.size()) {
+                throw std::invalid_argument(
+                    "LinearRegression::fit: xTrain and yTrain must have the "
+                    "same number of samples.");
+            }
  
-    // ==========================================================
-    // STEP 6: SHOW THE LEARNED WEIGHTS
-    // ==========================================================
-    // These weights tell us how much each ingredient affects strength.
-    // Positive weight = more of it → higher strength
-    // Negative weight = more of it → lower strength
+            int numSamples = static_cast<int>(xTrain.size());    // m
+            int numFeatures = static_cast<int>(xTrain[0].size()); // n
  
-    std::cout << "\n[Step 5] Learned weights:" << std::endl;
+            // --- Initialize all weights to 0, bias to 0 ---
+            weights.assign(numFeatures, 0.0);
+            bias = 0.0;
+            lossHistory.clear();
  
-    const std::vector<double>& learnedWeights = model.getWeights();
-    std::vector<std::string> featureNames = {
-        "cement", "slag", "ash", "water",
-        "superplastic", "coarseagg", "fineagg", "age"
+            // ===================================================
+            // GRADIENT DESCENT LOOP
+            // ===================================================
+            // Each iteration: compute gradients, update parameters
+            for (int iter = 0; iter < maxIterations; ++iter) {
+ 
+                // These will accumulate the gradient values
+                std::vector<double> gradWeights(numFeatures, 0.0);
+                double gradBias = 0.0;
+ 
+                // --- Loop over every training sample ---
+                for (int i = 0; i < numSamples; ++i) {
+ 
+                    // 1. Make a prediction with current weights
+                    //    y_hat = w1*x1 + w2*x2 + ... + b
+                    double yHat = dotProduct(weights, xTrain[i]) + bias;
+ 
+                    // 2. Compute the error (how far off we are)
+                    //    error = y_hat - y_true
+                    double error = yHat - yTrain[i];
+ 
+                    // 3. Accumulate gradients
+                    //    For each weight j:
+                    //      dL/dw_j += error * x_j
+                    //    For bias:
+                    //      dL/db += error * 1
+                    for (int j = 0; j < numFeatures; ++j) {
+                        gradWeights[j] += error * xTrain[i][j];
+                    }
+                    gradBias += error;
+                }
+ 
+                // 4. Scale gradients by 2/m
+                //    (The "2" comes from the derivative of the squared term.
+                //     The assignment uses 1/m instead of 1/2m in the loss,
+                //     so the gradient has 2/m instead of 1/m.)
+                double scaleFactor = 2.0 / numSamples;
+                for (int j = 0; j < numFeatures; ++j) {
+                    gradWeights[j] *= scaleFactor;
+                }
+                gradBias *= scaleFactor;
+ 
+                // 5. UPDATE: nudge each parameter in the opposite
+                //    direction of its gradient
+                //
+                //    w_j = w_j - learningRate * gradient_w_j
+                //    b   = b   - learningRate * gradient_b
+                for (int j = 0; j < numFeatures; ++j) {
+                    weights[j] -= learningRate * gradWeights[j];
+                }
+                bias -= learningRate * gradBias;
+ 
+                // --- Track the loss ---
+                double currentLoss = computeLoss(xTrain, yTrain);
+                lossHistory.push_back(currentLoss);
+ 
+                // --- Print progress (if verbose) ---
+                if (verbose && (iter % printInterval == 0
+                                || iter == maxIterations - 1)) {
+                    std::cout << "  Iteration " << std::setw(6) << iter
+                              << " | Loss: " << std::fixed
+                              << std::setprecision(6) << currentLoss
+                              << std::endl;
+                }
+ 
+                // --- Early stopping ---
+                // If the loss barely changed, we've converged — stop early
+                if (iter > 0) {
+                    double lossDiff = std::abs(
+                        lossHistory[iter] - lossHistory[iter - 1]);
+                    if (lossDiff < tolerance) {
+                        if (verbose) {
+                            std::cout << "  Converged at iteration " << iter
+                                      << " (loss change: " << lossDiff << ")"
+                                      << std::endl;
+                        }
+                        break;
+                    }
+                }
+            }
+ 
+            isTrained = true;
+        }
+ 
+        // ==============================================================
+        // predict() — USE THE TRAINED MODEL
+        // ==============================================================
+ 
+        /*
+         * predict(xData)
+         * ---------------
+         * After training, use this to predict outputs for new data.
+         *
+         * For each sample x:
+         *   prediction = w1*x1 + w2*x2 + ... + wn*xn + b
+         *
+         * IMPORTANT: If you scaled the training data, you must scale
+         * the prediction data the same way (using the same scaler).
+         *
+         * Parameters:
+         *   xData - 2D vector of features to predict on
+         *
+         * Returns:
+         *   Vector of predictions (one per sample)
+         */
+        std::vector<double> predict(
+            const std::vector<std::vector<double>>& xData) const {
+ 
+            if (!isTrained) {
+                throw std::runtime_error(
+                    "LinearRegression::predict: Model not trained yet! "
+                    "Call fit() first.");
+            }
+ 
+            std::vector<double> predictions;
+            predictions.reserve(xData.size());
+ 
+            for (const auto& sample : xData) {
+                double yHat = dotProduct(weights, sample) + bias;
+                predictions.push_back(yHat);
+            }
+ 
+            return predictions;
+        }
+ 
+        /*
+         * predictSingle(xSample)
+         * ----------------------
+         * Predict for just ONE sample (convenience function).
+         */
+        double predictSingle(const std::vector<double>& xSample) const {
+            if (!isTrained) {
+                throw std::runtime_error(
+                    "LinearRegression::predictSingle: Model not trained.");
+            }
+            return dotProduct(weights, xSample) + bias;
+        }
+ 
+        // ==============================================================
+        // GETTERS — access the model's internals
+        // ==============================================================
+ 
+        const std::vector<double>& getWeights() const { return weights; }
+        double getBias() const { return bias; }
+        const std::vector<double>& getLossHistory() const { return lossHistory; }
+        bool getIsTrained() const { return isTrained; }
     };
  
-    for (int j = 0; j < numFeatures; ++j) {
-        std::cout << "    w[" << std::setw(12) << featureNames[j] << "] = "
-                  << std::fixed << std::setprecision(4)
-                  << learnedWeights[j] << std::endl;
-    }
-    std::cout << "    " << std::setw(16) << "bias" << "  = "
-              << std::fixed << std::setprecision(4)
-              << model.getBias() << std::endl;
+} // namespace linear_model
+} // namespace sklearn_cpp
  
-    std::cout << "\n=======================================" << std::endl;
-    std::cout << " Done!" << std::endl;
-    std::cout << "=======================================" << std::endl;
- 
-    return 0;
-}
+#endif // SKLEARN_CPP_LINEAR_MODEL_LINEAR_REGRESSION_HPP
