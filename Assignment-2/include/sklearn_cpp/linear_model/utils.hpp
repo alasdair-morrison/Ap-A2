@@ -10,7 +10,8 @@
 class Dataset
 {
 private:
-    std::vector<std::vector<double>> data;
+    std::vector<std::vector<double>> labels;
+    std::vector<double> data;
 
     //identifies numbers, used to detect header in csv file.
     bool isNumber(const std::string& s){
@@ -46,14 +47,10 @@ void populate(const std::string& filename)
         }
 
         // detect header
-        if (firstLine)
-        {
+        if (firstLine){
             bool header = false;
-            for (const auto& v : raw)
-            {
-                if (!isNumber(v))
-                {
-                     
+            for (const auto& v : raw){
+                if (!isNumber(v)){    
                     header = true;
                     break;
                 }
@@ -65,13 +62,24 @@ void populate(const std::string& filename)
                 continue;
         }
 
-        for (const auto& v : raw)
-        {
-            if (!v.empty())
-                row.push_back(std::stod(v));
+        std::vector<double> features;
+
+        for (size_t i = 0; i < raw.size(); ++i){
+        double num = std::stod(raw[i]);
+
+        //pushes the last piece of data into data vector
+        if (i == raw.size() - 1){
+            data.push_back(num);
         }
 
-        data.push_back(row);
+        //pushes other numbers into vector
+        else{
+            features.push_back(num);
+        }
+
+        //pushes vector of features into vec of vecs
+        labels.push_back(features);
+        }
     }
 }
 
@@ -84,14 +92,16 @@ public:
     }
 
     // Constructor for vector of vectors
-    Dataset(const std::vector<std::vector<double>>& data): data{data} {}
+    Dataset(const std::vector<std::vector<double>>& labels, const std::vector<double>& data):
+    labels{labels},
+    data{data}{}
 
     //Allows user to use data
-    const std::vector<std::vector<double>>& getData() const{ return data; }
+    const std::vector<double>& getData() const{ return data; }
 
     //Allows user to print data
     void print() const{
-    for (const auto& row : data){
+    for (const auto& row : labels){
         for (const auto& value : row){
             std::cout << value << " ";
         }
