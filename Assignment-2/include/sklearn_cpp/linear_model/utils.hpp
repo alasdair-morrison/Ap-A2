@@ -76,10 +76,9 @@ void populate(const std::string& filename)
         else{
             features.push_back(num);
         }
-
+        }
         //pushes vector of features into vec of vecs
         labels.push_back(features);
-        }
     }
 }
 
@@ -89,12 +88,14 @@ public:
     Dataset(const std::string& filename)
     {
         populate(filename);
+        std::cout<<"Dataset constructed using filename \n";
     }
 
     // Constructor for vector of vectors
     Dataset(const std::vector<std::vector<double>>& labels, const std::vector<double>& data):
     labels{labels},
-    data{data}{}
+    data{data}
+    {std::cout<<"Dataset constructed using vectors \n";}
 
     //Allows user to use data
     const std::vector<double>& getData() const{ return data; }
@@ -107,5 +108,13 @@ public:
         }
         std::cout << "\n";
     }
-}
+    }   
+
+    void printResult() const{
+        for (const auto& n : data){
+            std::cout << n << "\n";
+        }
+    }
 };
+
+//ADD METHODS FOR DETERMINING PERCENTAGE ERROR
