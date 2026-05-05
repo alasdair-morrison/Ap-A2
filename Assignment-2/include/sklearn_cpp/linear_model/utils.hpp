@@ -1,5 +1,4 @@
-#ifndef UTILS_HPP
-#define UTILS_HPP
+#pragma once
 
 #include <iostream>
 #include <vector>
@@ -95,4 +94,3 @@ public:
     }
 }
 };
-#endif
