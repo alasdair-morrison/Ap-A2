@@ -9,9 +9,8 @@
 namespace sklearn_cpp {
 namespace utils {
  
-    // ================================================================
+
     // STANDARD SCALER CLASS
-    // ================================================================
     // Normalizes features to mean=0, std=1 so gradient descent works.
     // Without this, features with large values (cement ~500) dominate
     // over features with small values (superplastic ~5).
@@ -97,9 +96,7 @@ namespace utils {
         const std::vector<double>& getStdDevs() const { return featureStdDevs; }
     };
  
-    // ================================================================
     // R² SCORE FUNCTION
-    // ================================================================
     // Evaluates model performance. 1.0 = perfect, 0.0 = bad.
  
     inline double r2Score(const std::vector<double>& yTrue,
@@ -136,9 +133,7 @@ namespace utils {
  
 namespace linear_model {
  
-    // ================================================================
     // LINEAR REGRESSION CLASS
-    // ================================================================
     // Implements gradient descent to learn weights for multi-feature
     // linear regression: y = w1*x1 + w2*x2 + ... + wn*xn + b
  
@@ -197,9 +192,7 @@ namespace linear_model {
          * Implements the update rule from assignment 03-maths:
          *   wJ = wJ - alpha * (2/m) * SUM_i [(yHat - y) * xJ]
          *   b  = b  - alpha * (2/m) * SUM_i [(yHat - y)]
-         *
-         * IMPORTANT: Scale your features with StandardScaler before
-         * calling fit(), otherwise gradient descent will fail.
+         
          */
         void fit(const std::vector<std::vector<double>>& xTrain,
                  const std::vector<double>& yTrain) {
