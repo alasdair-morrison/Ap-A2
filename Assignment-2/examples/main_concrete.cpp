@@ -12,7 +12,7 @@
 using sklearn_cpp::linear_model::LinearRegression;
 using sklearn_cpp::utils::StandardScaler;
 
-// Shuffle data and labels together
+// Shuffle data and labels together using a fixed seed for reproducibility
 void shuffleData(
     std::vector<std::vector<double>>& xData,
     std::vector<double>& yData,
@@ -21,29 +21,27 @@ void shuffleData(
     if (xData.size() != yData.size()) {
         throw std::invalid_argument("xData and yData size mismatch");
     }
-    
+
     int totalSamples = static_cast<int>(xData.size());
     std::vector<int> indices(totalSamples);
-    for (int i = 0; i < totalSamples; ++i) {
-        indices[i] = i;
-    }
-    
+    for (int i = 0; i < totalSamples; ++i) indices[i] = i;
+
     std::mt19937 generator(seed);
     std::shuffle(indices.begin(), indices.end(), generator);
-    
+
     std::vector<std::vector<double>> shuffledX(totalSamples);
     std::vector<double> shuffledY(totalSamples);
-    
+
     for (int i = 0; i < totalSamples; ++i) {
         shuffledX[i] = xData[indices[i]];
         shuffledY[i] = yData[indices[i]];
     }
-    
+
     xData = shuffledX;
     yData = shuffledY;
 }
 
-// Split data into training and testing sets
+// Split data into train/test sets (sequential after shuffling)
 void trainTestSplit(
     const std::vector<std::vector<double>>& xData,
     const std::vector<double>& yData,
@@ -56,23 +54,20 @@ void trainTestSplit(
     if (xData.size() != yData.size()) {
         throw std::invalid_argument("xData and yData size mismatch");
     }
-    
+
     int totalSamples = static_cast<int>(xData.size());
-    int trainSize = static_cast<int>(totalSamples * (1.0 - testSize));
-    
-    // Split after shuffling: first 80% for training, last 20% for testing
+    int trainSize    = static_cast<int>(totalSamples * (1.0 - testSize));
+
     for (int i = 0; i < trainSize; ++i) {
         xTrain.push_back(xData[i]);
         yTrain.push_back(yData[i]);
     }
-    
     for (int i = trainSize; i < totalSamples; ++i) {
         xTest.push_back(xData[i]);
         yTest.push_back(yData[i]);
     }
 }
 
-// Calculate Mean Squared Error
 double calculateMSE(
     const std::vector<double>& yActual,
     const std::vector<double>& yPredicted)
@@ -80,19 +75,15 @@ double calculateMSE(
     if (yActual.size() != yPredicted.size()) {
         throw std::invalid_argument("Size mismatch");
     }
-    
-    double sumSquaredErrors = 0.0;
-    int numSamples = static_cast<int>(yActual.size());
-    
-    for (int i = 0; i < numSamples; ++i) {
-        double error = yPredicted[i] - yActual[i];
-        sumSquaredErrors += error * error;
+    double sum = 0.0;
+    int n = static_cast<int>(yActual.size());
+    for (int i = 0; i < n; ++i) {
+        double e = yPredicted[i] - yActual[i];
+        sum += e * e;
     }
-    
-    return sumSquaredErrors / numSamples;
+    return sum / n;
 }
 
-// Calculate Mean Absolute Error
 double calculateMAE(
     const std::vector<double>& yActual,
     const std::vector<double>& yPredicted)
@@ -100,122 +91,234 @@ double calculateMAE(
     if (yActual.size() != yPredicted.size()) {
         throw std::invalid_argument("Size mismatch");
     }
-    
-    double sumAbsoluteErrors = 0.0;
-    int numSamples = static_cast<int>(yActual.size());
-    
-    for (int i = 0; i < numSamples; ++i) {
-        double error = std::abs(yPredicted[i] - yActual[i]);
-        sumAbsoluteErrors += error;
+    double sum = 0.0;
+    int n = static_cast<int>(yActual.size());
+    for (int i = 0; i < n; ++i) {
+        sum += std::abs(yPredicted[i] - yActual[i]);
     }
-    
-    return sumAbsoluteErrors / numSamples;
+    return sum / n;
+}
+
+// Degree-2 polynomial feature expansion applied to raw (unscaled) features.
+//
+// For n original features this produces:
+//   n   original features      x_i
+//   n   squared terms          x_i^2
+//   n*(n-1)/2 interactions     x_i * x_j  (i < j)
+// ──────────────────────────────────────────────────
+//   n*(n+3)/2 total            (for n=8 → 44 features)
+//
+// Expansion is done BEFORE StandardScaler so the scaler normalises every
+// new feature independently — the same pattern as sklearn's Pipeline.
+//
+// This is STILL linear regression: the model learns one weight per
+// expanded feature.  The non-linearity lives in the input space, not in
+// the model.  The fit() and predict() calls are identical to before.
+std::vector<std::vector<double>> addPolynomialFeatures(
+    const std::vector<std::vector<double>>& xData)
+{
+    std::vector<std::vector<double>> xPoly;
+    xPoly.reserve(xData.size());
+
+    for (const auto& row : xData) {
+        int n = static_cast<int>(row.size());
+        std::vector<double> newRow = row;          // keep all original features
+
+        // Squared terms: x_i^2
+        for (int i = 0; i < n; ++i) {
+            newRow.push_back(row[i] * row[i]);
+        }
+
+        // Pairwise interaction terms: x_i * x_j (i < j)
+        for (int i = 0; i < n; ++i) {
+            for (int j = i + 1; j < n; ++j) {
+                newRow.push_back(row[i] * row[j]);
+            }
+        }
+
+        xPoly.push_back(newRow);
+    }
+
+    return xPoly;
 }
 
 int main() {
     try {
-        // Load data
+        // ============================================================
+        // 1. Load dataset
+        // ============================================================
         std::cout << "Loading concrete.csv..." << std::endl;
         Database dataset("data/concrete.csv");
-        
+
         auto xData = dataset.getData();
         auto yData = dataset.getLabels();
-        
+
         int totalSamples = static_cast<int>(xData.size());
-        int numFeatures = static_cast<int>(xData[0].size());
-        
-        std::cout << "Loaded " << totalSamples << " samples with " 
-                  << numFeatures << " features" << std::endl << std::endl;
-        
-        // Shuffle before split so train/test draw from the same distribution.
-        // Without this, the concrete dataset's natural ordering (grouped by age)
-        // puts younger concrete in the test set and older in train, causing a
-        // systematic label distribution mismatch that suppresses R² by ~0.12.
+        int numFeatures  = static_cast<int>(xData[0].size());
+
+        std::cout << "Loaded " << totalSamples << " samples with "
+                  << numFeatures << " features" << std::endl;
+
+        // ============================================================
+        // 2. Shuffle then split — shared for both models
+        //    (seed=42 for reproducibility)
+        // ============================================================
         shuffleData(xData, yData, 42);
 
-        // Split data
-        std::cout << "Splitting data (80/20)..." << std::endl;
-        std::vector<std::vector<double>> xTrain;
-        std::vector<double> yTrain;
-        std::vector<std::vector<double>> xTest;
-        std::vector<double> yTest;
-
+        std::vector<std::vector<double>> xTrain, xTest;
+        std::vector<double> yTrain, yTest;
         trainTestSplit(xData, yData, xTrain, yTrain, xTest, yTest, 0.2);
 
-        int numTrainSamples = static_cast<int>(xTrain.size());
-        int numTestSamples = static_cast<int>(xTest.size());
+        int numTrain = static_cast<int>(xTrain.size());
+        int numTest  = static_cast<int>(xTest.size());
 
-        std::cout << "Train: " << numTrainSamples << " | Test: "
-                  << numTestSamples << std::endl;
-
-        // Verify the split is representative: train/test label means should be close
         double trainYMean = 0.0, testYMean = 0.0;
         for (double v : yTrain) trainYMean += v;
         for (double v : yTest)  testYMean  += v;
-        trainYMean /= numTrainSamples;
-        testYMean  /= numTestSamples;
-        std::cout << "Train y-mean: " << std::fixed << std::setprecision(2) << trainYMean
-                  << "  |  Test y-mean: " << testYMean
+        trainYMean /= numTrain;
+        testYMean  /= numTest;
+
+        std::cout << "Split  -> Train: " << numTrain << " | Test: " << numTest << std::endl;
+        std::cout << "y-mean -> Train: " << std::fixed << std::setprecision(2) << trainYMean
+                  << " | Test: " << testYMean
                   << "  (should be close)" << std::endl << std::endl;
-        
-        // Scale features
-        std::cout << "Scaling features..." << std::endl;
-        StandardScaler scaler;
-        auto xTrainScaled = scaler.fitTransform(xTrain);
-        auto xTestScaled = scaler.transform(xTest);
-        std::cout << "Done" << std::endl << std::endl;
-        
-        // lr=0.01: still well below the stability limit (~0.1 for 8 standardised
-        // features) but converges faster, leaving more budget before the
-        // absolute-tolerance early-stop fires prematurely.
-        std::cout << "Training model..." << std::endl;
-        std::cout << "(Learning rate: 0.01, max 100000 iterations)" << std::endl;
-        LinearRegression model(0.01, 100000, 1e-8, true, 5000);
-        model.fit(xTrainScaled, yTrain);
-        
-        std::cout << "Model trained" << std::endl;
-        std::cout << "Bias: " << std::fixed << std::setprecision(4) 
-                  << model.getBias() << std::endl << std::endl;
-        
-        // Predict
-        std::cout << "Making predictions..." << std::endl;
-        auto testPredictions = model.predict(xTestScaled);
-        std::cout << "Done" << std::endl << std::endl;
-        
-        // Evaluate
-        double mse = calculateMSE(yTest, testPredictions);
-        double mae = calculateMAE(yTest, testPredictions);
-        double r2 = sklearn_cpp::utils::r2Score(yTest, testPredictions);
-        
-        std::cout << "Results:" << std::endl;
-        std::cout << "MSE: " << std::fixed << std::setprecision(4) << mse << std::endl;
-        std::cout << "MAE: " << std::fixed << std::setprecision(4) << mae << std::endl;
-        std::cout << "R2:  " << std::fixed << std::setprecision(4) << r2 << std::endl << std::endl;
-        
-        // Show some predictions
-        std::cout << "Sample predictions (first 10 test samples):" << std::endl;
-        std::cout << std::setw(8) << "Sample" 
-                  << std::setw(12) << "Predicted" 
+
+        // ============================================================
+        // 3. MODEL 1 — Baseline: 8 original features
+        // ============================================================
+        std::cout << "============================================================" << std::endl;
+        std::cout << "  MODEL 1: Linear Regression  (" << numFeatures << " features)" << std::endl;
+        std::cout << "============================================================" << std::endl;
+
+        StandardScaler scalerLinear;
+        auto xTrainLinearScaled = scalerLinear.fitTransform(xTrain);
+        auto xTestLinearScaled  = scalerLinear.transform(xTest);
+
+        LinearRegression modelLinear(0.01, 100000, 1e-8, true, 5000);
+        modelLinear.fit(xTrainLinearScaled, yTrain);
+
+        auto predLinear  = modelLinear.predict(xTestLinearScaled);
+        double mseLinear = calculateMSE(yTest, predLinear);
+        double maeLinear = calculateMAE(yTest, predLinear);
+        double r2Linear  = sklearn_cpp::utils::r2Score(yTest, predLinear);
+
+        std::cout << "Bias: " << std::fixed << std::setprecision(4)
+                  << modelLinear.getBias() << std::endl;
+        std::cout << "MSE:  " << std::fixed << std::setprecision(4) << mseLinear << std::endl;
+        std::cout << "MAE:  " << maeLinear << std::endl;
+        std::cout << "R2:   " << r2Linear  << std::endl << std::endl;
+
+        // ============================================================
+        // 4. MODEL 2 — Polynomial degree-2 expansion (still LinearRegression)
+        //
+        //    WHY THIS HELPS:
+        //    Concrete strength is not a purely linear function of its
+        //    ingredients.  For example, the water-to-cement ratio is a
+        //    ratio (non-linear), and strength grows roughly with log(age).
+        //    Degree-2 polynomial features let the same linear weight
+        //    equation capture those curved relationships without changing
+        //    LinearRegression at all — we just give it richer inputs.
+        //
+        //    WHY IT IS STILL LINEAR REGRESSION:
+        //    The model remains  y = w1*phi1 + w2*phi2 + ... + wk*phik + b
+        //    where each phi_i is a (possibly non-linear) function of the
+        //    raw inputs.  The model is linear in the WEIGHTS, which is the
+        //    definition of linear regression.  fit() and predict() are
+        //    identical; only the feature matrix handed to them changes.
+        // ============================================================
+        std::cout << "============================================================" << std::endl;
+        std::cout << "  MODEL 2: Linear Regression + Polynomial Features (deg 2)" << std::endl;
+        std::cout << "============================================================" << std::endl;
+
+        // Expand raw features — expansion must happen before scaling
+        auto xTrainPoly = addPolynomialFeatures(xTrain);
+        auto xTestPoly  = addPolynomialFeatures(xTest);
+
+        int numPolyFeatures = static_cast<int>(xTrainPoly[0].size());
+        int numSquared      = numFeatures;
+        int numInteractions = numPolyFeatures - 2 * numFeatures;
+
+        std::cout << "Feature expansion: " << numFeatures << " original"
+                  << "  +  " << numSquared << " squared"
+                  << "  +  " << numInteractions << " interactions"
+                  << "  =  " << numPolyFeatures << " total" << std::endl;
+
+        // Fit scaler ONLY on training poly features to avoid data leakage
+        StandardScaler scalerPoly;
+        auto xTrainPolyScaled = scalerPoly.fitTransform(xTrainPoly);
+        auto xTestPolyScaled  = scalerPoly.transform(xTestPoly);
+
+        LinearRegression modelPoly(0.01, 100000, 1e-8, true, 5000);
+        modelPoly.fit(xTrainPolyScaled, yTrain);
+
+        auto predPoly  = modelPoly.predict(xTestPolyScaled);
+        double msePoly = calculateMSE(yTest, predPoly);
+        double maePoly = calculateMAE(yTest, predPoly);
+        double r2Poly  = sklearn_cpp::utils::r2Score(yTest, predPoly);
+
+        std::cout << "Bias: " << std::fixed << std::setprecision(4)
+                  << modelPoly.getBias() << std::endl;
+        std::cout << "MSE:  " << std::fixed << std::setprecision(4) << msePoly << std::endl;
+        std::cout << "MAE:  " << maePoly << std::endl;
+        std::cout << "R2:   " << r2Poly  << std::endl << std::endl;
+
+        // ============================================================
+        // 5. Comparison table
+        // ============================================================
+        std::cout << "============================================================" << std::endl;
+        std::cout << "  COMPARISON" << std::endl;
+        std::cout << "============================================================" << std::endl;
+        std::cout << std::left
+                  << std::setw(32) << "Model"
+                  << std::right
+                  << std::setw(10) << "Features"
+                  << std::setw(10) << "MSE"
+                  << std::setw(10) << "MAE"
+                  << std::setw(9)  << "R2" << std::endl;
+        std::cout << std::string(71, '-') << std::endl;
+
+        std::cout << std::left  << std::setw(32) << "Linear Regression"
+                  << std::right << std::setw(10) << numFeatures
+                  << std::setw(10) << std::fixed << std::setprecision(2) << mseLinear
+                  << std::setw(10) << maeLinear
+                  << std::setw(9)  << std::setprecision(4) << r2Linear << std::endl;
+
+        std::cout << std::left  << std::setw(32) << "Linear Reg + Poly deg-2"
+                  << std::right << std::setw(10) << numPolyFeatures
+                  << std::setw(10) << std::setprecision(2) << msePoly
+                  << std::setw(10) << maePoly
+                  << std::setw(9)  << std::setprecision(4) << r2Poly << std::endl;
+
+        double r2Gain  = r2Poly  - r2Linear;
+        double mseGain = mseLinear - msePoly;
+        std::cout << std::endl;
+        std::cout << "R2 improvement:  +" << std::fixed << std::setprecision(4) << r2Gain  << std::endl;
+        std::cout << "MSE reduction:   -" << std::fixed << std::setprecision(2) << mseGain << std::endl;
+        std::cout << std::endl;
+
+        // ============================================================
+        // 6. Sample predictions — polynomial model (first 10 test samples)
+        // ============================================================
+        std::cout << "Sample predictions — polynomial model (first 10 test samples):" << std::endl;
+        std::cout << std::setw(8)  << "Sample"
+                  << std::setw(12) << "Predicted"
                   << std::setw(12) << "Actual"
                   << std::setw(10) << "Error" << std::endl;
         std::cout << std::string(42, '-') << std::endl;
-        
-        int numSamplesToDisplay = std::min(10, numTestSamples);
-        for (int i = 0; i < numSamplesToDisplay; ++i) {
-            double error = testPredictions[i] - yTest[i];
-            std::cout << std::setw(8) << i + 1
-                      << std::setw(12) << std::fixed << std::setprecision(2) 
-                      << testPredictions[i]
-                      << std::setw(12) << std::fixed << std::setprecision(2) 
-                      << yTest[i]
-                      << std::setw(10) << std::fixed << std::setprecision(2) 
-                      << error << std::endl;
+
+        int numToShow = std::min(10, numTest);
+        for (int i = 0; i < numToShow; ++i) {
+            double err = predPoly[i] - yTest[i];
+            std::cout << std::setw(8)  << i + 1
+                      << std::setw(12) << std::fixed << std::setprecision(2) << predPoly[i]
+                      << std::setw(12) << yTest[i]
+                      << std::setw(10) << err << std::endl;
         }
-        
+
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
         return 1;
     }
-    
+
     return 0;
 }
