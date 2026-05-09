@@ -127,20 +127,36 @@ int main() {
         std::cout << "Loaded " << totalSamples << " samples with " 
                   << numFeatures << " features" << std::endl << std::endl;
         
+        // Shuffle before split so train/test draw from the same distribution.
+        // Without this, the concrete dataset's natural ordering (grouped by age)
+        // puts younger concrete in the test set and older in train, causing a
+        // systematic label distribution mismatch that suppresses R² by ~0.12.
+        shuffleData(xData, yData, 42);
+
         // Split data
         std::cout << "Splitting data (80/20)..." << std::endl;
         std::vector<std::vector<double>> xTrain;
         std::vector<double> yTrain;
         std::vector<std::vector<double>> xTest;
         std::vector<double> yTest;
-        
+
         trainTestSplit(xData, yData, xTrain, yTrain, xTest, yTest, 0.2);
-        
+
         int numTrainSamples = static_cast<int>(xTrain.size());
         int numTestSamples = static_cast<int>(xTest.size());
-        
-        std::cout << "Train: " << numTrainSamples << " | Test: " 
-                  << numTestSamples << std::endl << std::endl;
+
+        std::cout << "Train: " << numTrainSamples << " | Test: "
+                  << numTestSamples << std::endl;
+
+        // Verify the split is representative: train/test label means should be close
+        double trainYMean = 0.0, testYMean = 0.0;
+        for (double v : yTrain) trainYMean += v;
+        for (double v : yTest)  testYMean  += v;
+        trainYMean /= numTrainSamples;
+        testYMean  /= numTestSamples;
+        std::cout << "Train y-mean: " << std::fixed << std::setprecision(2) << trainYMean
+                  << "  |  Test y-mean: " << testYMean
+                  << "  (should be close)" << std::endl << std::endl;
         
         // Scale features
         std::cout << "Scaling features..." << std::endl;
@@ -149,10 +165,12 @@ int main() {
         auto xTestScaled = scaler.transform(xTest);
         std::cout << "Done" << std::endl << std::endl;
         
-        // Train model with extreme iteration count to test convergence limits
-        std::cout << "Training model with 100,000 iterations..." << std::endl;
-        std::cout << "(Learning rate: 0.005, extreme iteration testing)" << std::endl;
-        LinearRegression model(0.005, 100000, 1e-8, true, 5000);
+        // lr=0.01: still well below the stability limit (~0.1 for 8 standardised
+        // features) but converges faster, leaving more budget before the
+        // absolute-tolerance early-stop fires prematurely.
+        std::cout << "Training model..." << std::endl;
+        std::cout << "(Learning rate: 0.01, max 100000 iterations)" << std::endl;
+        LinearRegression model(0.01, 100000, 1e-8, true, 5000);
         model.fit(xTrainScaled, yTrain);
         
         std::cout << "Model trained" << std::endl;
