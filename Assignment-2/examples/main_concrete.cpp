@@ -3,12 +3,45 @@
 #include <cmath>
 #include <iomanip>
 #include <stdexcept>
+#include <algorithm>
+#include <random>
 
 #include "../include/sklearn_cpp/linear_model/utils.hpp"
 #include "../include/sklearn_cpp/linear_model/LinearRegression.hpp"
 
 using sklearn_cpp::linear_model::LinearRegression;
 using sklearn_cpp::utils::StandardScaler;
+
+// Shuffle data and labels together
+void shuffleData(
+    std::vector<std::vector<double>>& xData,
+    std::vector<double>& yData,
+    unsigned int seed = 42)
+{
+    if (xData.size() != yData.size()) {
+        throw std::invalid_argument("xData and yData size mismatch");
+    }
+    
+    int totalSamples = static_cast<int>(xData.size());
+    std::vector<int> indices(totalSamples);
+    for (int i = 0; i < totalSamples; ++i) {
+        indices[i] = i;
+    }
+    
+    std::mt19937 generator(seed);
+    std::shuffle(indices.begin(), indices.end(), generator);
+    
+    std::vector<std::vector<double>> shuffledX(totalSamples);
+    std::vector<double> shuffledY(totalSamples);
+    
+    for (int i = 0; i < totalSamples; ++i) {
+        shuffledX[i] = xData[indices[i]];
+        shuffledY[i] = yData[indices[i]];
+    }
+    
+    xData = shuffledX;
+    yData = shuffledY;
+}
 
 // Split data into training and testing sets
 void trainTestSplit(
@@ -27,7 +60,7 @@ void trainTestSplit(
     int totalSamples = static_cast<int>(xData.size());
     int trainSize = static_cast<int>(totalSamples * (1.0 - testSize));
     
-    // First 80% for training, last 20% for testing
+    // Split after shuffling: first 80% for training, last 20% for testing
     for (int i = 0; i < trainSize; ++i) {
         xTrain.push_back(xData[i]);
         yTrain.push_back(yData[i]);
@@ -116,9 +149,10 @@ int main() {
         auto xTestScaled = scaler.transform(xTest);
         std::cout << "Done" << std::endl << std::endl;
         
-        // Train model
-        std::cout << "Training model..." << std::endl;
-        LinearRegression model(0.01, 1000, 1e-8, true, 100);
+        // Train model with extreme iteration count to test convergence limits
+        std::cout << "Training model with 100,000 iterations..." << std::endl;
+        std::cout << "(Learning rate: 0.005, extreme iteration testing)" << std::endl;
+        LinearRegression model(0.005, 100000, 1e-8, true, 5000);
         model.fit(xTrainScaled, yTrain);
         
         std::cout << "Model trained" << std::endl;
@@ -133,10 +167,12 @@ int main() {
         // Evaluate
         double mse = calculateMSE(yTest, testPredictions);
         double mae = calculateMAE(yTest, testPredictions);
+        double r2 = sklearn_cpp::utils::r2Score(yTest, testPredictions);
         
         std::cout << "Results:" << std::endl;
         std::cout << "MSE: " << std::fixed << std::setprecision(4) << mse << std::endl;
-        std::cout << "MAE: " << std::fixed << std::setprecision(4) << mae << std::endl << std::endl;
+        std::cout << "MAE: " << std::fixed << std::setprecision(4) << mae << std::endl;
+        std::cout << "R2:  " << std::fixed << std::setprecision(4) << r2 << std::endl << std::endl;
         
         // Show some predictions
         std::cout << "Sample predictions (first 10 test samples):" << std::endl;
