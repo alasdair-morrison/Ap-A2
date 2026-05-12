@@ -6,6 +6,8 @@
 #include <sstream>
 #include <string>
 #include <stdexcept>
+#include<numeric>
+#include <cmath>
 
 class Dataset
 {
@@ -118,3 +120,21 @@ public:
 };
 
 //ADD METHODS FOR DETERMINING PERCENTAGE ERROR
+int const Rsquared(const std::vector<double>& Y_actual, const std::vector<double>& Y_predicted){
+    //Get the mean value of the actual value, used to calculate S_total
+    double Y_mean{std::accumulate(Y_actual.begin(),Y_actual.end(),0)/Y_actual.size()};
+
+    double S_residual{0};
+    double S_total{0};
+
+    //Calculate the S_residual and S_total terms
+    for(int i{0}; i < Y_actual.size(); i++){
+        S_residual += std::pow(Y_actual[i] - Y_predicted[i],2);
+        S_total += std::pow(Y_actual[i] - Y_mean,2);
+    }
+
+    //calculate R squared term
+    double R_squared{1 - S_residual/S_total};
+
+    return R_squared;
+}
