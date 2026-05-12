@@ -119,8 +119,17 @@ public:
     }
 };
 
+void VectorSizeChecker(const std::vector<double>& v1, const std::vector<double>& v2){
+    if(v1.size() != v2.size()){
+    throw std::invalid_argument("Vectors must be same size");
+    }
+}
+
 //R squared calculator
 double const R_squared(const std::vector<double>& Y_actual, const std::vector<double>& Y_predicted){
+    
+    VectorSizeChecker(Y_actual, Y_predicted);
+    
     //Get the mean value of the actual value, used to calculate S_total
     double Y_mean{std::accumulate(Y_actual.begin(),Y_actual.end(),0)/static_cast<double>(Y_actual.size())};
 
@@ -142,7 +151,10 @@ double const R_squared(const std::vector<double>& Y_actual, const std::vector<do
     return R_squared;
 }
 
+//Accuracy checker for logistic regression accuracy analysis
 double const accuracy_score(const std::vector<double>& Y_actual, const std::vector<double>& Y_predicted){
+
+    VectorSizeChecker(Y_actual, Y_predicted);
 
     int correctPrediction{0};
 
