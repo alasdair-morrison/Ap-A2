@@ -120,9 +120,9 @@ public:
 };
 
 //ADD METHODS FOR DETERMINING PERCENTAGE ERROR
-int const Rsquared(const std::vector<double>& Y_actual, const std::vector<double>& Y_predicted){
+double const R_squared(const std::vector<double>& Y_actual, const std::vector<double>& Y_predicted){
     //Get the mean value of the actual value, used to calculate S_total
-    double Y_mean{std::accumulate(Y_actual.begin(),Y_actual.end(),0)/Y_actual.size()};
+    double Y_mean{std::accumulate(Y_actual.begin(),Y_actual.end(),0)/static_cast<double>(Y_actual.size())};
 
     double S_residual{0};
     double S_total{0};
