@@ -119,7 +119,7 @@ public:
     }
 };
 
-//ADD METHODS FOR DETERMINING PERCENTAGE ERROR
+//R squared calculator
 double const R_squared(const std::vector<double>& Y_actual, const std::vector<double>& Y_predicted){
     //Get the mean value of the actual value, used to calculate S_total
     double Y_mean{std::accumulate(Y_actual.begin(),Y_actual.end(),0)/static_cast<double>(Y_actual.size())};
@@ -133,8 +133,26 @@ double const R_squared(const std::vector<double>& Y_actual, const std::vector<do
         S_total += std::pow(Y_actual[i] - Y_mean,2);
     }
 
+    //If all Y values are the same, avoid division by zero.
+    if (S_total == 0.0){return 0.0;}
+
     //calculate R squared term
     double R_squared{1 - S_residual/S_total};
 
     return R_squared;
+}
+
+double const accuracy_score(const std::vector<double>& Y_actual, const std::vector<double>& Y_predicted){
+
+    int correctPrediction{0};
+
+    for(int i{0}; i < Y_actual.size(); i++){
+        if(Y_actual[i] == Y_predicted[i]){
+            correctPrediction += 1;
+        }
+    }
+
+    double accuracy{correctPrediction/static_cast<double>(Y_actual.size())};
+    
+    return accuracy;
 }
