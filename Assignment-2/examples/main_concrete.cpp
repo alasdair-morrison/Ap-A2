@@ -210,9 +210,6 @@ int main() {
         int totalSamples = static_cast<int>(xData.size());
         int numRawFeatures = static_cast<int>(xData[0].size());
 
-        std::cout << "Loaded " << totalSamples << " samples, "
-                  << numRawFeatures << " raw features" << std::endl;
-
         // --------------------------------------------------------
         // 2. Shuffle + split — identical split used by all models
         // --------------------------------------------------------
@@ -231,17 +228,9 @@ int main() {
         trainYMean /= numTrain;
         testYMean  /= numTest;
 
-        std::cout << "Split  -> Train: " << numTrain << " | Test: " << numTest << std::endl;
-        std::cout << "y-mean -> Train: " << std::fixed << std::setprecision(2)
-                  << trainYMean << " | Test: " << testYMean
-                  << "  (should be close)" << std::endl << std::endl;
+        std::cout << "Train samples: " << numTrain << ", Test samples: " << numTest << std::endl;
 
-        // --------------------------------------------------------
-        // MODEL 1 — Baseline: 8 raw features, linear
-        // --------------------------------------------------------
-        std::cout << "============================================================" << std::endl;
-        std::cout << "  MODEL 1: Linear Regression  (" << numRawFeatures << " features)" << std::endl;
-        std::cout << "============================================================" << std::endl;
+        std::cout << "\nTraining Model 1 (Linear Regression)..." << std::endl;
 
         StandardScaler scalerM1;
         auto xTrainM1 = scalerM1.fitTransform(xTrain);
@@ -256,17 +245,9 @@ int main() {
         double maeM1 = calculateMAE(yTest, predM1);
         double r2M1  = R_squared(yTest, predM1);
 
-        std::cout << "Bias:  " << std::fixed << std::setprecision(4) << modelM1.getBias() << std::endl;
-        std::cout << "MSE:   " << mseM1 << std::endl;
-        std::cout << "MAE:   " << maeM1 << std::endl;
-        std::cout << "R2:    " << r2M1  << std::endl << std::endl;
+        std::cout << "M1 - MSE: " << mseM1 << ", MAE: " << maeM1 << ", R2: " << r2M1 << std::endl;
 
-        // --------------------------------------------------------
-        // MODEL 2 — Degree-2 poly on 8 raw features (44 features)
-        // --------------------------------------------------------
-        std::cout << "============================================================" << std::endl;
-        std::cout << "  MODEL 2: Linear Reg + Poly deg-2  (44 features)" << std::endl;
-        std::cout << "============================================================" << std::endl;
+        std::cout << "\nTraining Model 2 (Poly deg-2)..." << std::endl;
 
         auto xTrainM2raw = addPolynomialFeatures(xTrain);
         auto xTestM2raw  = addPolynomialFeatures(xTest);
@@ -284,35 +265,9 @@ int main() {
         double maeM2 = calculateMAE(yTest, predM2);
         double r2M2  = R_squared(yTest, predM2);
 
-        std::cout << "Bias:  " << std::fixed << std::setprecision(4) << modelM2.getBias() << std::endl;
-        std::cout << "MSE:   " << mseM2 << std::endl;
-        std::cout << "MAE:   " << maeM2 << std::endl;
-        std::cout << "R2:    " << r2M2  << std::endl << std::endl;
+        std::cout << "M2 - MSE: " << mseM2 << ", MAE: " << maeM2 << ", R2: " << r2M2 << std::endl;
 
-        // --------------------------------------------------------
-        // MODEL 3 — Domain engineering + degree-2 poly (90 features)
-        //
-        // Pipeline:
-        //   raw 8 → addDomainFeatures() → 12 base
-        //         → addPolynomialFeatures() → 90 features
-        //         → StandardScaler (fit on train only)
-        //         → LinearRegression (unchanged fit/predict API)
-        //
-        // This is still Linear Regression: y = w · phi(x) + b
-        // The model is linear in the weights.  phi(x) encodes the
-        // domain knowledge; the weights are still learned by gradient
-        // descent exactly as before.
-        // --------------------------------------------------------
-        std::cout << "============================================================" << std::endl;
-        std::cout << "  MODEL 3: Domain Features + Poly deg-2  (90 features)" << std::endl;
-        std::cout << "============================================================" << std::endl;
-        std::cout << "  Engineered features added before polynomial expansion:" << std::endl;
-        std::cout << "    feat 8  log(age)              — maturity law curvature" << std::endl;
-        std::cout << "    feat 9  water/cement           — Abrams w/c ratio" << std::endl;
-        std::cout << "    feat 10 cement+slag+ash        — total binder content" << std::endl;
-        std::cout << "    feat 11 binder/water           — blended Abrams ratio" << std::endl;
-        std::cout << "  8 raw + 4 domain = 12 base  -->  degree-2 --> 90 total" << std::endl;
-        std::cout << std::endl;
+        std::cout << "\nTraining Model 3 (Domain + Poly deg-2)..." << std::endl;
 
         // Step 1: domain features on raw (unscaled) data
         auto xTrainDomain = addDomainFeatures(xTrain);
@@ -322,18 +277,16 @@ int main() {
         auto xTrainM3raw = addPolynomialFeatures(xTrainDomain);
         auto xTestM3raw  = addPolynomialFeatures(xTestDomain);
 
-        int numM3Features = static_cast<int>(xTrainM3raw[0].size());
-        std::cout << "  Total features after expansion: " << numM3Features << std::endl;
+
 
         // Step 3: scale — ONLY fit on training data
         StandardScaler scalerM3;
         auto xTrainM3 = scalerM3.fitTransform(xTrainM3raw);
         auto xTestM3  = scalerM3.transform(xTestM3raw);
 
-        // Step 4: train — verbose=true so we can watch convergence
-        LinearRegression modelM3(0.01, 100000, 1e-8, true, 10000);
-        modelM3.fit(xTrainM3, yTrain);
 
+        LinearRegression modelM3(0.01, 300000, 1e-8, true, 300000);
+        modelM3.fit(xTrainM3, yTrain);
         auto predM3  = modelM3.predict(xTestM3);
         double mseM3 = calculateMSE(yTest, predM3);
         double maeM3 = calculateMAE(yTest, predM3);
@@ -343,6 +296,8 @@ int main() {
         std::cout << "MSE:   " << mseM3 << std::endl;
         std::cout << "MAE:   " << maeM3 << std::endl;
         std::cout << "R2:    " << r2M3  << std::endl << std::endl;
+
+        int numM3Features = static_cast<int>(xTrainM3[0].size());
 
         // --------------------------------------------------------
         // Comparison table
