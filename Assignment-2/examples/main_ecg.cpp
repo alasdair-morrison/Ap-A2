@@ -10,7 +10,7 @@ int main() {
     model.fit(); // Train the model using the training data
     std::cout << "Making predictions..." << std::endl; // Print a message indicating that predictions are being made
     std::vector<double> predictions = model.predict(); // Get predictions on the test data
-    Database testData = model.getTestData(); // Retrieve the test dataset
+    Dataset testData = model.getTestData(); // Retrieve the test dataset
     std::vector<double> trueLabels = testData.getLabels(); // Get the true labels from the test dataset
     double accuracy = calculateAccuracy(predictions, trueLabels); // Calculate the accuracy of the model
     std::cout << "Accuracy: " << accuracy << std::endl; // Print the accuracy to the console

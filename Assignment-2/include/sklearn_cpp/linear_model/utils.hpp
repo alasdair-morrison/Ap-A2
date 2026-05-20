@@ -4,13 +4,13 @@
 #include <stdexcept>
 #include <vector>
 #include <string>
-class Database {
+class Dataset {
     private:
         std::vector<std::vector<double>> features;
         std::vector<double> labels;
 
     public:
-        Database(std::string filename) {
+        Dataset(std::string filename) {
             std::ifstream file(filename);
             if (!file.is_open()) {
                 throw std::runtime_error("Failed to open file: " + filename);
@@ -50,11 +50,11 @@ class Database {
             }
         }
 
-        Database() {
+        Dataset() {
             // Default constructor
         }
 
-        Database(std::vector<std::vector<double>> features, std::vector<double> labels) {
+        Dataset(std::vector<std::vector<double>> features, std::vector<double> labels) {
             this->features = features;
             this->labels = labels;
 

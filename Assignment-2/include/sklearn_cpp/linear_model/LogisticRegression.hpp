@@ -7,9 +7,9 @@
 #include <algorithm>
 class LogisticRegression {
     private:
-        Database data; // Original dataset
-        Database testData = Database(); // Testing dataset
-        Database trainData = Database(); // Training dataset
+        Dataset data; // Original dataset
+        Dataset testData = Dataset(); // Testing dataset
+        Dataset trainData = Dataset(); // Training dataset
         std::vector<std::vector<double>> weights; // Model weights
         int epochs; // Number of training iterations
         std::vector<double> biases; // Model bias
@@ -19,7 +19,7 @@ class LogisticRegression {
         double learningRate = 0.01; // Learning rate for gradient descent
         double convergenceThreshold = 1e-3; // Threshold for convergence
 
-        void splitData(double trainSize, Database& data, Database& trainData, Database& testData) {
+        void splitData(double trainSize, Dataset& data, Dataset& trainData, Dataset& testData) {
             std::vector<std::vector<double>> features = data.getData(); // Get features from the dataset
             std::vector<double> labels = data.getLabels(); // Get labels from the dataset
             int totalSize = features.size(); // Total number of samples in the dataset
@@ -29,9 +29,9 @@ class LogisticRegression {
             std::vector<double> trainLabels(labels.begin(), labels.begin() + trainSizeCount);
             std::vector<std::vector<double>> testFeatures(features.begin() + trainSizeCount, features.end());
             std::vector<double> testLabels(labels.begin() + trainSizeCount, labels.end());
-            // Create Database objects for training and testing datasets
-            this->trainData = Database(trainFeatures, trainLabels);
-            this->testData = Database(testFeatures, testLabels);
+            // Create Dataset objects for training and testing datasets
+            this->trainData = Dataset(trainFeatures, trainLabels);
+            this->testData = Dataset(testFeatures, testLabels);
         }
         
         std::vector<double> softmax(const std::vector<double>& z) {
@@ -103,7 +103,7 @@ class LogisticRegression {
 
     public:
         LogisticRegression(std::string filename, int epochs, double trainSize = 0.8, int numClasses = 2) {
-            this->data = Database(filename); // Load data from file
+            this->data = Dataset(filename); // Load data from file
             splitData(trainSize, data, trainData, testData); // Split data into training and testing sets
             this->epochs = epochs; // Set the number of training iterations
             this->numClasses = numClasses; // Set the number of classes to detect
@@ -149,7 +149,7 @@ class LogisticRegression {
             std::vector<double> predictions; // Vector to store predicted class labels
             if (!filename.empty()) {
                 //Use existing test data if no filename is provided, otherwise load new test data from the specified file
-                Database newTestData(filename);
+                Dataset newTestData(filename);
                 // Perform predictions on the new test data
                 for (const auto& x : newTestData.getData()) {
                     std::vector<double> predictedProbs = forwardProb(this->weights, x, this->biases); // Get predicted probabilities for the current sample
@@ -168,7 +168,7 @@ class LogisticRegression {
             return predictions; // Return the vector of predicted class labels
         };
 
-        Database getTestData() {
+        Dataset getTestData() {
             return this->testData; // Return the testing dataset
         };
 
