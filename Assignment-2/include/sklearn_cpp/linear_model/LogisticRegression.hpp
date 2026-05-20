@@ -8,30 +8,65 @@
 class LogisticRegression {
     private:
         Dataset data; // Original dataset
-        Dataset testData = Dataset(); // Testing dataset
-        Dataset trainData = Dataset(); // Training dataset
+        Dataset testData; // Testing dataset
+        Dataset trainData; // Training dataset
         std::vector<std::vector<double>> weights; // Model weights
         int epochs; // Number of training iterations
         std::vector<double> biases; // Model bias
         int numClasses; // Number of classes in the dataset
         int numFeatures; // Number of features in the dataset
         int numSamples; // Number of samples in the dataset
+        std::vector<double> featureMaxes; // Normalization scaling factors
         double learningRate = 0.01; // Learning rate for gradient descent
         double convergenceThreshold = 1e-3; // Threshold for convergence
 
-        void splitData(double trainSize, Dataset& data, Dataset& trainData, Dataset& testData) {
-            std::vector<std::vector<double>> features = data.getData(); // Get features from the dataset
-            std::vector<double> labels = data.getLabels(); // Get labels from the dataset
+        std::vector<Dataset> splitData(double trainSize, Dataset& data, Dataset& trainData, Dataset& testData) {
+            std::vector<std::vector<double>> features = data.getLabels(); // Get features from the dataset
+            std::vector<double> labels = data.getData(); // Get labels from the dataset
             int totalSize = features.size(); // Total number of samples in the dataset
             int trainSizeCount = static_cast<int>(totalSize * trainSize); // Calculate the number of samples for training based on the specified train size
+            
+            // Shuffle data before splitting
+            std::vector<int> indices(totalSize);
+            std::iota(indices.begin(), indices.end(), 0);
+            std::srand(42); // fixed seed for reproducibility
+            for (int i = totalSize - 1; i > 0; --i) {
+                int j = std::rand() % (i + 1);
+                std::swap(indices[i], indices[j]);
+            }
+
+            std::vector<std::vector<double>> shuffledFeatures(totalSize);
+            std::vector<double> shuffledLabels(totalSize);
+            for (int i = 0; i < totalSize; ++i) {
+                shuffledFeatures[i] = features[indices[i]];
+                shuffledLabels[i] = labels[indices[i]];
+            }
+
+            // Normalize features internally using MaxAbsScaler
+            if(totalSize > 0 && shuffledFeatures[0].size() > 0) {
+                size_t num_f = shuffledFeatures[0].size();
+                this->featureMaxes.assign(num_f, 0.0);
+                for (int i = 0; i < totalSize; ++i) {
+                    for (size_t j = 0; j < num_f; ++j) {
+                        this->featureMaxes[j] = std::max(this->featureMaxes[j], std::abs(shuffledFeatures[i][j]));
+                    }
+                }
+                for (int i = 0; i < totalSize; ++i) {
+                    for (size_t j = 0; j < num_f; ++j) {
+                        if (this->featureMaxes[j] > 0) {
+                            shuffledFeatures[i][j] /= this->featureMaxes[j];
+                        }
+                    }
+                }
+            }
+
             // Split the features and labels into training and testing sets
-            std::vector<std::vector<double>> trainFeatures(features.begin(), features.begin() + trainSizeCount);
-            std::vector<double> trainLabels(labels.begin(), labels.begin() + trainSizeCount);
-            std::vector<std::vector<double>> testFeatures(features.begin() + trainSizeCount, features.end());
-            std::vector<double> testLabels(labels.begin() + trainSizeCount, labels.end());
-            // Create Dataset objects for training and testing datasets
-            this->trainData = Dataset(trainFeatures, trainLabels);
-            this->testData = Dataset(testFeatures, testLabels);
+            std::vector<std::vector<double>> trainFeatures(shuffledFeatures.begin(), shuffledFeatures.begin() + trainSizeCount);
+            std::vector<double> trainLabels(shuffledLabels.begin(), shuffledLabels.begin() + trainSizeCount);
+            std::vector<std::vector<double>> testFeatures(shuffledFeatures.begin() + trainSizeCount, shuffledFeatures.end());
+            std::vector<double> testLabels(shuffledLabels.begin() + trainSizeCount, shuffledLabels.end());
+            // Return the training and testing datasets as Dataset objects
+            return {Dataset(trainFeatures, trainLabels), Dataset(testFeatures, testLabels)};
         }
         
         std::vector<double> softmax(const std::vector<double>& z) {
@@ -102,15 +137,20 @@ class LogisticRegression {
         }
 
     public:
-        LogisticRegression(std::string filename, int epochs, double trainSize = 0.8, int numClasses = 2) {
-            this->data = Dataset(filename); // Load data from file
-            splitData(trainSize, data, trainData, testData); // Split data into training and testing sets
-            this->epochs = epochs; // Set the number of training iterations
-            this->numClasses = numClasses; // Set the number of classes to detect
-            this->numFeatures = trainData.getData()[0].size(); // Set the number of features based on the training data
+        LogisticRegression(std::string filename, int epochs, double trainSize = 0.8, int numClasses = 2) :
+        data{Dataset(filename)},
+        testData{Dataset({}, {})},
+        trainData{Dataset({}, {})},
+        epochs{epochs},
+        numClasses{numClasses}
+        {
+            std::vector<Dataset> dataSplits = splitData(trainSize, data, trainData, testData); // Split data into training and testing sets
+            this->trainData = dataSplits[0]; // Set the training dataset
+            this->testData = dataSplits[1]; // Set the testing dataset
+            this->numFeatures = trainData.getLabels()[0].size(); // Set the number of features based on the training data
             this->weights = std::vector<std::vector<double>>(this->numFeatures, std::vector<double>(numClasses, 0.0)); // Initialize weights to zero
             this->biases = std::vector<double>(numClasses, 0.0); // Initialize biases to zero
-            this->numSamples = trainData.getData().size(); // Set the number of samples based on the training data
+            this->numSamples = trainData.getLabels().size(); // Set the number of samples based on the training data
         };
 
         void fit() {
@@ -124,8 +164,8 @@ class LogisticRegression {
                     std::vector<std::vector<double>> dW(this->numFeatures, std::vector<double>(this->numClasses, 0.0));
                     std::vector<double> db(this->numClasses, 0.0);
                     
-                    const std::vector<double>& x = trainData.getData()[i]; // Get the features of the current sample by reference
-                    double trueClassIndex = trainData.getLabels()[i]; // Get the true class label of the current sample
+                    const std::vector<double>& x = trainData.getLabels()[i]; // Get the features of the current sample by reference
+                    double trueClassIndex = trainData.getData()[i]; // Get the true class label of the current sample
                     
                     // Forward pass: compute predicted probabilities
                     std::vector<double> predictedProbs = forwardProb(this->weights, x, this->biases);
@@ -144,21 +184,25 @@ class LogisticRegression {
             }
         };
         
-        std::vector<double> predict(std::string filename = "") {
+        std::vector<double> predict(Dataset newTestData = Dataset({}, {})) {
             // Implement the prediction logic for logistic regression
             std::vector<double> predictions; // Vector to store predicted class labels
-            if (!filename.empty()) {
-                //Use existing test data if no filename is provided, otherwise load new test data from the specified file
-                Dataset newTestData(filename);
+            if (!newTestData.getLabels().empty()) {
+                // Use the provided test dataset
                 // Perform predictions on the new test data
-                for (const auto& x : newTestData.getData()) {
+                for (auto x : newTestData.getLabels()) {
+                    for (size_t j = 0; j < x.size(); ++j) {
+                        if (j < this->featureMaxes.size() && this->featureMaxes[j] > 0) {
+                            x[j] /= this->featureMaxes[j];
+                        }
+                    }
                     std::vector<double> predictedProbs = forwardProb(this->weights, x, this->biases); // Get predicted probabilities for the current sample
                     int predictedClass = std::distance(predictedProbs.begin(), std::max_element(predictedProbs.begin(), predictedProbs.end())); // Determine the class with the highest probability
                     predictions.push_back(predictedClass); // Store the predicted class label
                 }
             } else {
                 // Perform predictions on the existing test data
-                for (const auto& x : testData.getData()) {
+                for (const auto& x : testData.getLabels()) {
                     std::vector<double> predictedProbs = forwardProb(this->weights, x, this->biases); // Get predicted probabilities for the current sample
                     int predictedClass = std::distance(predictedProbs.begin(), std::max_element(predictedProbs.begin(), predictedProbs.end())); // Determine the class with the highest probability
                     predictions.push_back(predictedClass); // Store the predicted class label
@@ -168,7 +212,7 @@ class LogisticRegression {
             return predictions; // Return the vector of predicted class labels
         };
 
-        Dataset getTestData() {
+        Dataset getTestData() const {
             return this->testData; // Return the testing dataset
         };
 

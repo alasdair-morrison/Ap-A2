@@ -83,7 +83,7 @@ private:
             labels.push_back(features);
         }
     }
-    
+
 public:
     // Constructor for file name
     Dataset(const std::string& filename)
@@ -100,7 +100,7 @@ public:
 
     //Allows user to use data
     const std::vector<double>& getData() const{ return data; }
-
+    const std::vector<std::vector<double>>& getLabels() const{ return labels; }
     //Allows user to print data
     void print() const{
     for (const auto& row : labels){

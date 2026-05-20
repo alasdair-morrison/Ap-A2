@@ -11,8 +11,8 @@ int main() {
     std::cout << "Making predictions..." << std::endl; // Print a message indicating that predictions are being made
     std::vector<double> predictions = model.predict(); // Get predictions on the test data
     Dataset testData = model.getTestData(); // Retrieve the test dataset
-    std::vector<double> trueLabels = testData.getLabels(); // Get the true labels from the test dataset
-    double accuracy = calculateAccuracy(predictions, trueLabels); // Calculate the accuracy of the model
-    std::cout << "Accuracy: " << accuracy << std::endl; // Print the accuracy to the console
+    std::vector<double> trueLabels = testData.getData(); // Get the true labels from the test dataset
+    double accuracy = 100 * accuracy_score(trueLabels, predictions); // Calculate the accuracy of the model
+    std::cout << "Accuracy: " << accuracy << "%" << std::endl; // Print the accuracy to the console
     return 0;
 }
