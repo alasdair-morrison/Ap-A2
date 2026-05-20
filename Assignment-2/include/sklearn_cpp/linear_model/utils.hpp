@@ -23,68 +23,67 @@ private:
         return (ss >> d) && !(ss >> c);
     }
 
-void populate(const std::string& filename)
-{
-    std::ifstream file(filename);
-
-    if (!file.is_open())
+    void populate(const std::string& filename)
     {
-        throw std::runtime_error("Could not open file");
-    }
+        std::ifstream file(filename);
 
-    std::string line;
-    bool firstLine = true;
-
-    while (std::getline(file, line))
-    {
-        std::stringstream ss(line);
-        std::string value;
-
-        std::vector<std::string> raw;
-        std::vector<double> row;
-
-        while (std::getline(ss, value, ','))
+        if (!file.is_open())
         {
-            raw.push_back(value);
+            throw std::runtime_error("Could not open file");
         }
 
-        // detect header
-        if (firstLine){
-            bool header = false;
-            for (const auto& v : raw){
-                if (!isNumber(v)){    
-                    header = true;
-                    break;
-                }
+        std::string line;
+        bool firstLine = true;
+
+        while (std::getline(file, line))
+        {
+            std::stringstream ss(line);
+            std::string value;
+
+            std::vector<std::string> raw;
+            std::vector<double> row;
+
+            while (std::getline(ss, value, ','))
+            {
+                raw.push_back(value);
             }
 
-            firstLine = false;
+            // detect header
+            if (firstLine){
+                bool header = false;
+                for (const auto& v : raw){
+                    if (!isNumber(v)){    
+                        header = true;
+                        break;
+                    }
+                }
 
-            if (header)
-                continue;
+                firstLine = false;
+
+                if (header)
+                    continue;
+            }
+
+            std::vector<double> features;
+
+            for (size_t i = 0; i < raw.size(); ++i){
+            double num = std::stod(raw[i]);
+
+            //pushes the last piece of data into data vector
+            if (i == raw.size() - 1){
+                data.push_back(num);
+            }
+
+            //pushes other numbers into vector
+            else{
+                features.push_back(num);
+            }
+            }
+            //pushes vector of features into vec of vecs
+            labels.push_back(features);
         }
-
-        std::vector<double> features;
-
-        for (size_t i = 0; i < raw.size(); ++i){
-        double num = std::stod(raw[i]);
-
-        //pushes the last piece of data into data vector
-        if (i == raw.size() - 1){
-            data.push_back(num);
-        }
-
-        //pushes other numbers into vector
-        else{
-            features.push_back(num);
-        }
-        }
-        //pushes vector of features into vec of vecs
-        labels.push_back(features);
     }
-}
-
-
+    
 public:
     // Constructor for file name
     Dataset(const std::string& filename)
