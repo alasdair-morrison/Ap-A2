@@ -200,10 +200,10 @@ int main() {
         // 1. Load and verify dataset
         // --------------------------------------------------------
         std::cout << "Loading concrete.csv..." << std::endl;
-        Database dataset("data/concrete.csv");
+        Dataset dataset("data/concrete.csv");
 
-        auto xData = dataset.getData();
-        auto yData = dataset.getLabels();
+        auto xData = dataset.getLabels();
+        auto yData = dataset.getData();
 
         int totalSamples = static_cast<int>(xData.size());
         int numRawFeatures = static_cast<int>(xData[0].size());
