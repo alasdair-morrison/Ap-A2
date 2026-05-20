@@ -9,7 +9,7 @@ int main() {
     std::cout << "Training the model..." << std::endl; // Print a message indicating that training is starting
     model.fit(); // Train the model using the training data
     std::cout << "Making predictions..." << std::endl; // Print a message indicating that predictions are being made
-    Dataset MNISTTestData("data/mnist_mini.csv"); // Load the test dataset
+    Dataset MNISTTestData("data/mnist_full.csv"); // Load the test dataset
     std::vector<double> predictions = model.predict(MNISTTestData); // Get predictions on the test data
     Dataset testData = model.getTestData(); // Retrieve the test dataset
     std::vector<double> trueLabels = testData.getData(); // Get the true labels from the test dataset

@@ -12,6 +12,8 @@
 using sklearn_cpp::linear_model::LinearRegression;
 using sklearn_cpp::utils::StandardScaler;
 
+// Compile with: g++ -O3 -I ../include main_concrete.cpp -o main_concrete && ./main_concrete
+
 // ============================================================
 // Utility functions (unchanged)
 // ============================================================
@@ -252,7 +254,7 @@ int main() {
         auto predM1  = modelM1.predict(xTestM1);
         double mseM1 = calculateMSE(yTest, predM1);
         double maeM1 = calculateMAE(yTest, predM1);
-        double r2M1  = sklearn_cpp::utils::r2Score(yTest, predM1);
+        double r2M1  = R_squared(yTest, predM1);
 
         std::cout << "Bias:  " << std::fixed << std::setprecision(4) << modelM1.getBias() << std::endl;
         std::cout << "MSE:   " << mseM1 << std::endl;
@@ -280,7 +282,7 @@ int main() {
         auto predM2  = modelM2.predict(xTestM2);
         double mseM2 = calculateMSE(yTest, predM2);
         double maeM2 = calculateMAE(yTest, predM2);
-        double r2M2  = sklearn_cpp::utils::r2Score(yTest, predM2);
+        double r2M2  = R_squared(yTest, predM2);
 
         std::cout << "Bias:  " << std::fixed << std::setprecision(4) << modelM2.getBias() << std::endl;
         std::cout << "MSE:   " << mseM2 << std::endl;
@@ -335,7 +337,7 @@ int main() {
         auto predM3  = modelM3.predict(xTestM3);
         double mseM3 = calculateMSE(yTest, predM3);
         double maeM3 = calculateMAE(yTest, predM3);
-        double r2M3  = sklearn_cpp::utils::r2Score(yTest, predM3);
+        double r2M3  = R_squared(yTest, predM3);
 
         std::cout << "Bias:  " << std::fixed << std::setprecision(4) << modelM3.getBias() << std::endl;
         std::cout << "MSE:   " << mseM3 << std::endl;
