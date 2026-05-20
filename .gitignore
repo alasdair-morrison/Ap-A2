@@ -1,1 +1,6 @@
-a.out\nmain_concrete\nmain_ecg\nmain_mnist\ntest_shuffle\n*mnist_full.csv\n
+a.out
+main_concrete
+main_ecg
+main_mnist
+test_shuffle
+*mnist_full.csv
